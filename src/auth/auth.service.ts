@@ -6,28 +6,30 @@ import * as bcrypt from 'bcrypt';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly usersService: UsersService,
-    private readonly jwtService: JwtService,
+    private usersService: UsersService,
+    private jwtService: JwtService
   ) {}
 
-  async validateUser(username: string, pass: string): Promise<any> {
+  async validateUser(username: string, password: string): Promise<any> {
     const user = await this.usersService.findOne(username);
     if (!user) {
-      throw new UnauthorizedException('Invalid username or password');
+      return null;
     }
-    const isPasswordValid = await bcrypt.compare(pass, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid username or password');
+    
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return null;
     }
-    const { password, ...result } = user;
+
+    const { password: _, ...result } = user.toObject();
     return result;
   }
 
-  async login(loginDto: { username: string; password: string }) {
-    const user = await this.validateUser(loginDto.username, loginDto.password);
-    const payload = { username: user.username, sub: user._id };
+  async login(user: any) {
+    const payload = { username: user.username, sub: user._id, role: user.role };
     return {
       access_token: this.jwtService.sign(payload),
+      role: user.role
     };
   }
 }
