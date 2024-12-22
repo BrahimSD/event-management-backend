@@ -11,6 +11,9 @@ export class User extends Document {
 
   @Prop({ required: true })
   role: string;
+
+  @Prop()
+  avatar: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

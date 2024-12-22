@@ -15,10 +15,17 @@ export class AuthController {
   @Post('register')
   async register(@Body() createUserDto: CreateUserDto) {
     const user = await this.usersService.create(createUserDto);
-    const payload = { username: user.username, sub: user._id, role: user.role };
+    const payload = { 
+      username: user.username, 
+      sub: user._id, 
+      role: user.role 
+    };
+    
     return {
       access_token: this.jwtService.sign(payload),
-      role: user.role
+      username: user.username,
+      role: user.role,
+      avatar: user.avatar // Ajout de l'avatar dans la réponse
     };
   }
 
@@ -29,10 +36,17 @@ export class AuthController {
       throw new UnauthorizedException('Invalid credentials');
     }
     
-    return this.authService.login({
+    const response = {
+      access_token: this.jwtService.sign({
+        username: user.username,
+        sub: user._id,
+        role: user.role
+      }),
       username: user.username,
-      _id: user._id,
-      role: user.role
-    });
+      role: user.role,
+      avatar: user.avatar 
+    };
+
+    return response;
   }
 }
