@@ -8,9 +8,17 @@ import * as bcrypt from 'bcrypt';
 @Injectable()
 export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  
+  async findAll(): Promise<User[]> {
+    return this.userModel.find().exec();
+  }
 
-  async findOne(username: string): Promise<User | undefined> {
-    return this.userModel.findOne({ username }).exec();
+  async findOne(username: string): Promise<User> {
+    return this.userModel
+      .findOne({ username })
+      .populate({ path: 'createdEvents', select: 'name date location' })
+      .populate({ path: 'attendedEvents', select: 'name date location' })
+      .exec();
   }
 
   async create(createUserDto: CreateUserDto): Promise<User> {

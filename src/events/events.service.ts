@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nest
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Event } from './schemas/event.schema';
+import { User } from '../users/schemas/user.schema';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 
@@ -9,12 +10,23 @@ import { UpdateEventDto } from './dto/update-event.dto';
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
 
-  constructor(@InjectModel(Event.name) private eventModel: Model<Event>) {}
+  constructor(
+    @InjectModel(Event.name) private eventModel: Model<Event>,
+    @InjectModel(User.name) private userModel: Model<User>
+  ) {}
 
   async create(createEventDto: CreateEventDto): Promise<Event> {
     const newEvent = new this.eventModel(createEventDto);
-    return newEvent.save();
+    const savedEvent = await newEvent.save();
+    
+    await this.userModel.findOneAndUpdate(
+      { username: createEventDto.organizer },
+      { $push: { createdEvents: savedEvent._id } }
+    );
+    
+    return savedEvent;
   }
+
 
   async findAll(): Promise<Event[]> {
     return this.eventModel.find().exec();
@@ -49,14 +61,27 @@ export class EventsService {
     const event = await this.findOne(eventId);
     if (!event.participants.includes(username)) {
       event.participants.push(username);
-      return event.save();
+      await event.save();
+      
+      await this.userModel.findOneAndUpdate(
+        { username },
+        { $push: { attendedEvents: eventId } }
+      );
     }
     return event;
   }
 
   async unregister(eventId: string, username: string): Promise<Event> {
     const event = await this.findOne(eventId);
-    event.participants = event.participants.filter((user) => user !== username);
-    return event.save();
+    event.participants = event.participants.filter(user => user !== username);
+    await event.save();
+    
+    // Remove from user's attended events
+    await this.userModel.findOneAndUpdate(
+      { username },
+      { $pull: { attendedEvents: eventId } }
+    );
+    
+    return event;
   }
 }
