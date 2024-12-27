@@ -7,6 +7,9 @@ export class User extends Document {
   @Prop({ required: true })
   username: string;
 
+  @Prop({ required: true, unique: true })
+  email: string;
+
   @Prop({ required: true })
   password: string;
 
@@ -14,7 +17,19 @@ export class User extends Document {
   role: string;
 
   @Prop()
+  about: string;
+
+  @Prop()
+  location: string;
+
+  @Prop()
   avatar: string;
+
+  @Prop({ type: [String], default: [] })
+  followers: string[];
+
+  @Prop({ type: [String], default: [] })
+  following: string[];
 
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Event' }] })
   createdEvents: Event[];
