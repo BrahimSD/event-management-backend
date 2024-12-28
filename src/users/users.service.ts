@@ -10,12 +10,16 @@ export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<User>) {}
   
   async findAll(): Promise<User[]> {
-    return this.userModel.find().exec();
+    return this.userModel
+      .find()
+      .select('username email role avatar about location followers following')
+      .exec();
   }
 
   async findOne(username: string): Promise<User> {
     return this.userModel
       .findOne({ username })
+      .select('username email role avatar about location followers following createdEvents attendedEvents')
       .populate({ path: 'createdEvents', select: 'name date location' })
       .populate({ path: 'attendedEvents', select: 'name date location' })
       .exec();
@@ -94,51 +98,65 @@ export class UsersService {
   }
 
   async follow(username: string, followerUsername: string): Promise<User> {
-    const user = await this.userModel.findOne({ username });
-    if (!user) {
+    const [user, follower] = await Promise.all([
+      this.userModel.findOne({ username }),
+      this.userModel.findOne({ username: followerUsername })
+    ]);
+
+    if (!user || !follower) {
       throw new NotFoundException('User not found');
     }
 
-    if (!user.followers) {
-      user.followers = [];
-    }
+    await Promise.all([
+      this.userModel.updateOne(
+        { username },
+        { $addToSet: { followers: followerUsername } }
+      ),
+      this.userModel.updateOne(
+        { username: followerUsername },
+        { $addToSet: { following: username } }
+      )
+    ]);
 
-    if (!user.followers.includes(followerUsername)) {
-      user.followers.push(followerUsername);
-      await user.save();
-
-      // Add to following list of the follower
-      const follower = await this.userModel.findOne({ username: followerUsername });
-      if (follower) {
-        if (!follower.following) {
-          follower.following = [];
-        }
-        follower.following.push(username);
-        await follower.save();
-      }
-    }
-
-    return user;
+    return this.userModel
+      .findOne({ username })
+      .select('username email role avatar about location followers following')
+      .exec();
   }
 
   async unfollow(username: string, followerUsername: string): Promise<User> {
-    const user = await this.userModel.findOne({ username });
-    if (!user) {
+    const [user, follower] = await Promise.all([
+      this.userModel.findOne({ username }),
+      this.userModel.findOne({ username: followerUsername })
+    ]);
+
+    if (!user || !follower) {
       throw new NotFoundException('User not found');
     }
 
-    if (user.followers) {
-      user.followers = user.followers.filter(f => f !== followerUsername);
-      await user.save();
+    await Promise.all([
+      this.userModel.updateOne(
+        { username },
+        { $pull: { followers: followerUsername } }
+      ),
+      this.userModel.updateOne(
+        { username: followerUsername },
+        { $pull: { following: username } }
+      )
+    ]);
 
-      // Remove from following list of the follower
-      const follower = await this.userModel.findOne({ username: followerUsername });
-      if (follower && follower.following) {
-        follower.following = follower.following.filter(f => f !== username);
-        await follower.save();
-      }
-    }
-
-    return user;
+    return this.userModel
+      .findOne({ username })
+      .select('username email role avatar about location followers following')
+      .exec();
   }
+
+  async toggleFollow(username: string, followerUsername: string, shouldFollow: boolean): Promise<User> {
+    if (shouldFollow) {
+      return this.follow(username, followerUsername);
+    } else {
+      return this.unfollow(username, followerUsername);
+    }
+  }
+
 }

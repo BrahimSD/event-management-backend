@@ -2,8 +2,6 @@ import { Controller, Get, Put, Post, Body, NotFoundException, Param, UseGuards, 
 import { UsersService } from "./users.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 
-
-
 @Controller('users')
 export class UsersController {
   constructor(
@@ -34,6 +32,8 @@ export class UsersController {
       avatar: user.avatar,
       about: user.about,
       location: user.location,
+      followers: user.followers || [],
+      following: user.following || [],
       createdEvents: user.createdEvents,
       attendedEvents: user.attendedEvents
     };
