@@ -5,6 +5,7 @@ import { Event } from './schemas/event.schema';
 import { User } from '../users/schemas/user.schema';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class EventsService {
@@ -12,21 +13,29 @@ export class EventsService {
 
   constructor(
     @InjectModel(Event.name) private eventModel: Model<Event>,
-    @InjectModel(User.name) private userModel: Model<User>
+    @InjectModel(User.name) private userModel: Model<User>,
+    private notificationsService: NotificationsService
   ) {}
 
   async create(createEventDto: CreateEventDto): Promise<Event> {
     const newEvent = new this.eventModel(createEventDto);
     const savedEvent = await newEvent.save();
-    
-    await this.userModel.findOneAndUpdate(
-      { username: createEventDto.organizer },
-      { $push: { createdEvents: savedEvent._id } }
-    );
-    
+
+    // Notifier les followers de l'organisateur
+    const organizer = await this.userModel.findOne({ username: createEventDto.organizer });
+    if (organizer && organizer.followers) {
+      for (const follower of organizer.followers) {
+        await this.notificationsService.createNotification({
+          userId: follower,
+          message: `${createEventDto.organizer} has created a new event: ${createEventDto.name}`,
+          type: 'new_event',
+          data: { eventId: savedEvent._id }
+        });
+      }
+    }
+
     return savedEvent;
   }
-
 
   async findAll(): Promise<Event[]> {
     return this.eventModel.find().exec();
@@ -62,7 +71,15 @@ export class EventsService {
     if (!event.participants.includes(username)) {
       event.participants.push(username);
       await event.save();
-      
+
+      // Notifier l'organisateur
+      await this.notificationsService.createNotification({
+        userId: event.organizer,
+        message: `${username} has registered for your event: ${event.name}`,
+        type: 'event_registration',
+        data: { eventId: event._id }
+      });
+
       await this.userModel.findOneAndUpdate(
         { username },
         { $push: { attendedEvents: eventId } }

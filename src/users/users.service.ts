@@ -4,10 +4,14 @@ import { Model } from 'mongoose';
 import { User } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
+import { NotificationsService } from '../notifications/notifications.service';
+
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(@InjectModel(User.name) private userModel: Model<User>,
+  private notificationsService: NotificationsService
+) {}
   
   async findAll(): Promise<User[]> {
     return this.userModel
@@ -117,6 +121,13 @@ export class UsersService {
         { $addToSet: { following: username } }
       )
     ]);
+    // Créer une notification pour l'utilisateur suivi
+    await this.notificationsService.createNotification({
+      userId: username,
+      message: `${followerUsername} started following you`,
+      type: 'new_follower',
+      data: { followerUsername }
+    });
 
     return this.userModel
       .findOne({ username })

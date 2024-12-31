@@ -7,6 +7,7 @@ import { EventsModule } from './events/events.module';
 import { LoggerMiddleware } from './logger.middleware';
 import { ChatModule } from './chat/chat.module';
 import { ConfigModule as AppConfigModule } from './config/config.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 
 @Module({
@@ -20,6 +21,7 @@ import { ConfigModule as AppConfigModule } from './config/config.module';
     EventsModule,
     ChatModule,
     AppConfigModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {
