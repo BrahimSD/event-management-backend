@@ -21,7 +21,6 @@ export class EventsService {
     const newEvent = new this.eventModel(createEventDto);
     const savedEvent = await newEvent.save();
 
-    // Notifier les followers de l'organisateur
     const organizer = await this.userModel.findOne({ username: createEventDto.organizer });
     if (organizer && organizer.followers) {
       for (const follower of organizer.followers) {

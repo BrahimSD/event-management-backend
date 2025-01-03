@@ -3,12 +3,14 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Notification } from './schemas/notification.schema';
 import { NotificationSettings } from './schemas/notification-settings.schema';
+import {NotificationGateway} from './notification.gateway';
 
 @Injectable()
 export class NotificationsService {
   constructor(
     @InjectModel(Notification.name) private notificationModel: Model<Notification>,
-    @InjectModel(NotificationSettings.name) private settingsModel: Model<NotificationSettings>
+    @InjectModel(NotificationSettings.name) private settingsModel: Model<NotificationSettings>,
+    private notificationGateway: NotificationGateway
   ) {}
 
   async getNotifications(username: string): Promise<Notification[]> {
@@ -87,6 +89,11 @@ export class NotificationsService {
       data: data.data || {},
       read: false
     });
-    return notification.save();
+    const savedNotification = await notification.save();
+
+    // Emit the notification via WebSocket
+    this.notificationGateway.notifyUser(data.userId, savedNotification);
+    
+    return savedNotification;
   }
 }
