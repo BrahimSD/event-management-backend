@@ -1,10 +1,9 @@
 import {
-  Injectable,
   NotFoundException,
   ForbiddenException,
-  Logger,
   BadRequestException,
 } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Event } from './schemas/event.schema';
@@ -16,6 +15,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 @Injectable()
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
+  private notifiedEvents = new Set<string>();
 
   constructor(
     @InjectModel(Event.name) private eventModel: Model<Event>,
@@ -26,59 +26,71 @@ export class EventsService {
   }
 
   private setupStatusUpdateJob() {
-    // Check event statuses every hour
     setInterval(() => this.updateEventStatuses(), 1000 * 60 * 60);
   }
 
   private async updateEventStatuses() {
-    const now = new Date();
+    try {
+      const now = new Date();
+      const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-    // Update completed events
-    await this.eventModel
-      .updateMany(
+      await this.eventModel.updateMany(
         {
           date: { $lt: now },
-          status: { $ne: 'completed' },
+          status: { $ne: 'completed' }
         },
         {
-          $set: { status: 'completed' },
-        },
-      )
-      .exec();
-    // Update ongoing events
-    const twentyFourHoursFromNow = new Date(
-      now.getTime() + 24 * 60 * 60 * 1000,
-    );
-    await this.eventModel
-      .updateMany(
+          $set: { status: 'completed' }
+        }
+      ).exec();
+
+      await this.eventModel.updateMany(
         {
           date: {
             $gt: now,
-            $lte: twentyFourHoursFromNow,
+            $lte: twentyFourHoursFromNow
           },
-          status: 'upcoming',
+          status: 'upcoming'
         },
         {
-          $set: { status: 'ongoing' },
+          $set: { status: 'ongoing' }
+        }
+      ).exec();
+
+      await this.eventModel.updateMany(
+        {
+          date: { $gt: twentyFourHoursFromNow },
+          status: { $ne: 'upcoming' }
         },
-      )
-      .exec();
+        {
+          $set: { status: 'upcoming' }
+        }
+      ).exec();
 
-    // Notify users of status changes
-    const updatedEvents = await this.eventModel
-      .find({
-        $or: [{ status: 'ongoing' }, { status: 'completed' }],
-      })
-      .exec();
+      const updatedEvents = await this.eventModel.find({
+        $or: [
+          { status: 'ongoing' },
+          { status: 'completed' }
+        ]
+      }).exec();
 
-    for (const event of updatedEvents) {
-      await this.notifyStatusChange(event);
+      for (const event of updatedEvents) {
+        const notificationKey = `${event._id}-${event.status}`;
+        if (!this.notifiedEvents.has(notificationKey)) {
+          await this.notifyStatusChange(event);
+          this.notifiedEvents.add(notificationKey);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Error updating event statuses: ${error.message}`);
     }
   }
 
   private async notifyStatusChange(event: Event) {
     const message = this.getStatusChangeMessage(event);
-    if (message) {
+    if (!message) return;
+
+    try {
       await this.notificationsService.createNotification({
         userId: event.organizer,
         message,
@@ -86,32 +98,46 @@ export class EventsService {
         data: { eventId: event._id, status: event.status },
       });
 
-      // Notify participants as well
+      const notifiedUsers = new Set([event.organizer]);
       for (const participant of event.participants) {
-        await this.notificationsService.createNotification({
-          userId: participant,
-          message,
-          type: 'event_status_change',
-          data: { eventId: event._id, status: event.status },
-        });
+        if (!notifiedUsers.has(participant)) {
+          await this.notificationsService.createNotification({
+            userId: participant,
+            message,
+            type: 'event_status_change',
+            data: { eventId: event._id, status: event.status },
+          });
+          notifiedUsers.add(participant);
+        }
       }
+    } catch (error) {
+      this.logger.error(`Error sending notifications: ${error.message}`);
     }
   }
 
-  private getStatusChangeMessage(event: Event): string {
+  async deleteEvent(id: string): Promise<void> {
+    try {
+      await this.eventModel.findByIdAndDelete(id).exec();
+      this.notifiedEvents.delete(id);
+    } catch (error) {
+      this.logger.error(`Error deleting event: ${error.message}`);
+      throw error;
+    }
+  }
+
+  private getStatusChangeMessage(event: Event): string | null {
     switch (event.status) {
       case 'ongoing':
         return `Your event "${event.name}" is starting soon!`;
       case 'completed':
         return `Your event "${event.name}" has been completed.`;
       default:
-        return '';
+        return null;
     }
   }
 
   async create(createEventDto: CreateEventDto): Promise<Event> {
     try {
-      // Parse the date and time
       const dateTime = new Date(createEventDto.date);
       const time = createEventDto.time || '00:00'; // Use default time if not provided
       const [hours, minutes] = time.split(':');
@@ -189,7 +215,7 @@ export class EventsService {
 
   async register(eventId: string, username: string): Promise<Event> {
     const event = await this.findOne(eventId);
-    
+
     if (event.status === 'completed') {
       throw new ForbiddenException('Cannot register for completed events');
     }
@@ -202,12 +228,12 @@ export class EventsService {
         userId: event.organizer,
         message: `${username} has registered for your event: ${event.name}`,
         type: 'event_registration',
-        data: { eventId: event._id }
+        data: { eventId: event._id },
       });
 
       await this.userModel.findOneAndUpdate(
         { username },
-        { $push: { attendedEvents: eventId } }
+        { $push: { attendedEvents: eventId } },
       );
     }
 
