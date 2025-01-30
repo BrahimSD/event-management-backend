@@ -6,6 +6,7 @@ import {
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { CloudinaryService } from '../services/cloudinary.service';
 import { Event } from './schemas/event.schema';
 import { User } from '../users/schemas/user.schema';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -21,6 +22,7 @@ export class EventsService {
     @InjectModel(Event.name) private eventModel: Model<Event>,
     @InjectModel(User.name) private userModel: Model<User>,
     private notificationsService: NotificationsService,
+    private cloudinaryService: CloudinaryService,
   ) {
     this.setupStatusUpdateJob();
   }
@@ -32,47 +34,54 @@ export class EventsService {
   private async updateEventStatuses() {
     try {
       const now = new Date();
-      const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const twentyFourHoursFromNow = new Date(
+        now.getTime() + 24 * 60 * 60 * 1000,
+      );
 
-      await this.eventModel.updateMany(
-        {
-          date: { $lt: now },
-          status: { $ne: 'completed' }
-        },
-        {
-          $set: { status: 'completed' }
-        }
-      ).exec();
-
-      await this.eventModel.updateMany(
-        {
-          date: {
-            $gt: now,
-            $lte: twentyFourHoursFromNow
+      await this.eventModel
+        .updateMany(
+          {
+            date: { $lt: now },
+            status: { $ne: 'completed' },
           },
-          status: 'upcoming'
-        },
-        {
-          $set: { status: 'ongoing' }
-        }
-      ).exec();
+          {
+            $set: { status: 'completed' },
+          },
+        )
+        .exec();
 
-      await this.eventModel.updateMany(
-        {
-          date: { $gt: twentyFourHoursFromNow },
-          status: { $ne: 'upcoming' }
-        },
-        {
-          $set: { status: 'upcoming' }
-        }
-      ).exec();
+      await this.eventModel
+        .updateMany(
+          {
+            date: {
+              $gt: now,
+              $lte: twentyFourHoursFromNow,
+            },
+            status: 'upcoming',
+          },
+          {
+            $set: { status: 'ongoing' },
+          },
+        )
+        .exec();
 
-      const updatedEvents = await this.eventModel.find({
-        $or: [
-          { status: 'ongoing' },
-          { status: 'completed' }
-        ]
-      }).exec();
+      await this.eventModel
+        .updateMany(
+          {
+            date: { $gt: twentyFourHoursFromNow },
+            status: { $ne: 'upcoming' },
+          },
+          {
+            $set: { status: 'upcoming' },
+          },
+        )
+        .exec();
+
+      const updatedEvents = await this.eventModel
+        .find({
+          $or: [{ status: 'ongoing' }, { status: 'completed' }],
+        })
+        .exec();
 
       for (const event of updatedEvents) {
         const notificationKey = `${event._id}-${event.status}`;
@@ -138,40 +147,42 @@ export class EventsService {
 
   async create(createEventDto: CreateEventDto): Promise<Event> {
     try {
+      let imageUrl = null;
+      if (createEventDto.image) {
+        imageUrl = await this.cloudinaryService.uploadImage(createEventDto.image);
+      }
+  
       const dateTime = new Date(createEventDto.date);
-      const time = createEventDto.time || '00:00'; // Use default time if not provided
+      const time = createEventDto.time || '00:00';
       const [hours, minutes] = time.split(':');
       dateTime.setHours(parseInt(hours), parseInt(minutes));
-
-      // Create the event with all required fields
+  
       const newEvent = new this.eventModel({
-        name: createEventDto.name,
-        description: createEventDto.description,
+        ...createEventDto,
+        image: imageUrl,
         date: dateTime,
         time: time,
-        location: createEventDto.location,
-        organizer: createEventDto.organizer,
-        image: createEventDto.image,
-        status: 'upcoming',
+        status: 'upcoming'
       });
-
+  
       const savedEvent = await newEvent.save();
-
+  
       // Notify followers about the new event
       const organizer = await this.userModel.findOne({
         username: createEventDto.organizer,
       });
+      
       if (organizer?.followers?.length) {
         for (const follower of organizer.followers) {
           await this.notificationsService.createNotification({
             userId: follower,
             message: `${createEventDto.organizer} has created a new event: ${createEventDto.name}`,
             type: 'new_event',
-            data: { eventId: savedEvent._id },
+            data: { eventId: savedEvent._id }
           });
         }
       }
-
+  
       return savedEvent;
     } catch (error) {
       this.logger.error(`Error creating event: ${error.message}`);

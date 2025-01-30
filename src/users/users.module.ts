@@ -5,13 +5,15 @@ import { UsersController } from './users.controller';
 import { User, UserSchema } from './schemas/user.schema';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CloudinaryModule } from '../services/cloudinary.module';
 
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     forwardRef(() => AuthModule),
-    NotificationsModule
+    NotificationsModule,
+    CloudinaryModule
   ],
   controllers: [UsersController],
   providers: [UsersService],

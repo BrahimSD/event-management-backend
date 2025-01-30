@@ -5,6 +5,7 @@ import { EventsController } from './events.controller';
 import { Event, EventSchema } from './schemas/event.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CloudinaryModule } from '../services/cloudinary.module';
 
 @Module({
   imports: [
@@ -12,7 +13,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
       { name: Event.name, schema: EventSchema },
       { name: User.name, schema: UserSchema }
     ]),
-    NotificationsModule
+    NotificationsModule,
+    CloudinaryModule
   ],
   providers: [EventsService],
   controllers: [EventsController],

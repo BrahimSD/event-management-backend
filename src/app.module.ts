@@ -8,7 +8,7 @@ import { LoggerMiddleware } from './logger.middleware';
 import { ChatModule } from './chat/chat.module';
 import { ConfigModule as AppConfigModule } from './config/config.module';
 import { NotificationsModule } from './notifications/notifications.module';
-
+import { CloudinaryModule } from './services/cloudinary.module';
 
 @Module({
   imports: [
@@ -16,6 +16,7 @@ import { NotificationsModule } from './notifications/notifications.module';
       isGlobal: true,
     }),
     MongooseModule.forRoot(process.env.MONGO_URI),
+    CloudinaryModule,
     AuthModule,
     UsersModule,
     EventsModule,

@@ -1,11 +1,10 @@
-import { Controller, Get, Put, Post, Body, NotFoundException, Param, UseGuards, Request } from "@nestjs/common";
+import { Controller, Get, Put, Post, Body, NotFoundException, Param, UseGuards, Request , ForbiddenException, BadRequestException} from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 
 @Controller('users')
 export class UsersController {
-  constructor(
-    private readonly usersService: UsersService  ) {}
+  constructor(private readonly usersService: UsersService) {}
 
   @Get()
   async getAllUsers() {
@@ -37,6 +36,33 @@ export class UsersController {
       createdEvents: user.createdEvents,
       attendedEvents: user.attendedEvents
     };
+  }
+
+  @Put(':username/profile')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(
+    @Param('username') username: string,
+    @Body() updateData: any,
+    @Request() req
+  ) {
+    // Vérifier que l'utilisateur ne modifie que son propre profil
+    if (req.user.username !== username) {
+      throw new ForbiddenException('You can only update your own profile');
+    }
+
+    try {
+      const updatedUser = await this.usersService.updateProfile(username, updateData);
+      return {
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        avatar: updatedUser.avatar,
+        about: updatedUser.about,
+        location: updatedUser.location
+      };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 
   @Get(':username/avatar')
