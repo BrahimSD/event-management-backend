@@ -1,10 +1,16 @@
 import { Controller, Get, Put, Post, Body, NotFoundException, Param, UseGuards, Request , ForbiddenException, BadRequestException} from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { DriverResponse } from "../carsharing/interfaces/driver.interface";
+import { CarsharingService } from "../carsharing/carsharing.service";
+
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService, 
+    private readonly carsharingService: CarsharingService
+  ) {}
 
   @Get()
   async getAllUsers() {
@@ -16,6 +22,36 @@ export class UsersController {
       about: user.about,
       location: user.location
     }));
+  }
+
+  @Get('drivers')
+  async getDrivers(): Promise<DriverResponse[]> {
+    return this.carsharingService.getDrivers();
+  }
+
+  @Get('drivers/:eventId')
+  async getDriversForEvent(@Param('eventId') eventId: string): Promise<DriverResponse[]> {
+    return this.carsharingService.getDriversForEvent(eventId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put(':username/car-settings')
+  async updateCarSettings(
+    @Param('username') username: string,
+    @Body() carSettings: any,
+    @Request() req
+  ) {
+    if (req.user.username !== username) {
+      throw new ForbiddenException('You can only update your own car settings');
+    }
+  
+    try {
+      await this.usersService.updateCarSettings(username, { hasCar: true });
+      await this.carsharingService.createOrUpdateCarSharing(username, carSettings);
+      return { success: true, message: 'Car settings updated successfully' };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 
   @Get(':username')

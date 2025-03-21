@@ -11,13 +11,14 @@ import { User } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
 import { NotificationsService } from '../notifications/notifications.service';
+import { DriverResponse } from '../carsharing/interfaces/driver.interface';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     private notificationsService: NotificationsService,
-    private cloudinaryService: CloudinaryService
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   async findAll(): Promise<User[]> {
@@ -52,14 +53,16 @@ export class UsersService {
       let avatarUrl = null;
       if (createUserDto.avatar && createUserDto.avatar.startsWith('data:')) {
         // Upload l'avatar sur Cloudinary
-        avatarUrl = await this.cloudinaryService.uploadImage(createUserDto.avatar);
+        avatarUrl = await this.cloudinaryService.uploadImage(
+          createUserDto.avatar,
+        );
       }
 
       const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
       const user = new this.userModel({
         ...createUserDto,
         password: hashedPassword,
-        avatar: avatarUrl // Utiliser l'URL Cloudinary
+        avatar: avatarUrl, // Utiliser l'URL Cloudinary
       });
 
       return await user.save();
@@ -86,7 +89,9 @@ export class UsersService {
       // Si une nouvelle image d'avatar est fournie en base64
       if (updateData.avatar && updateData.avatar.startsWith('data:')) {
         // Upload l'image sur Cloudinary
-        updateData.avatar = await this.cloudinaryService.uploadImage(updateData.avatar);
+        updateData.avatar = await this.cloudinaryService.uploadImage(
+          updateData.avatar,
+        );
       }
 
       // Mise à jour des autres champs
@@ -102,22 +107,18 @@ export class UsersService {
             avatar: updateData.avatar,
             about: updateData.about,
             location: updateData.location,
-            password: updateData.password || user.password
-          }
+            password: updateData.password || user.password,
+          },
         },
-        { new: true }
+        { new: true },
       );
 
       // Retourner l'utilisateur mis à jour sans le mot de passe
-      return this.userModel
-        .findOne({ username })
-        .select('-password')
-        .exec();
+      return this.userModel.findOne({ username }).select('-password').exec();
     } catch (error) {
       throw new Error(`Failed to update profile: ${error.message}`);
     }
   }
-
 
   async update(username: string, updateData: any): Promise<User> {
     const user = await this.userModel.findOne({ username });
@@ -228,5 +229,19 @@ export class UsersService {
     } else {
       return this.unfollow(username, followerUsername);
     }
+  }
+
+  async updateCarSettings(username: string, carSettings: any): Promise<User> {
+    const user = await this.userModel.findOne({ username }).exec();
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.hasCar = true;
+    return user.save();
+  }
+
+  async getDrivers(eventId?: string): Promise<DriverResponse[]> {
+    return [];
   }
 }

@@ -18,5 +18,6 @@ import { CloudinaryModule } from '../services/cloudinary.module';
   ],
   providers: [EventsService],
   controllers: [EventsController],
+  exports: [EventsService]
 })
 export class EventsModule {}

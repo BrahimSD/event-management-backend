@@ -6,6 +6,7 @@ import { User, UserSchema } from './schemas/user.schema';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CloudinaryModule } from '../services/cloudinary.module';
+import { CarsharingModule } from '../carsharing/carsharing.module';
 
 
 @Module({
@@ -13,7 +14,8 @@ import { CloudinaryModule } from '../services/cloudinary.module';
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     forwardRef(() => AuthModule),
     NotificationsModule,
-    CloudinaryModule
+    CloudinaryModule,
+    forwardRef(() => CarsharingModule) 
   ],
   controllers: [UsersController],
   providers: [UsersService],

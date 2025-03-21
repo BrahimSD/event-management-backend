@@ -9,6 +9,7 @@ import { ChatModule } from './chat/chat.module';
 import { ConfigModule as AppConfigModule } from './config/config.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CloudinaryModule } from './services/cloudinary.module';
+import { CarsharingModule } from './carsharing/carsharing.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { CloudinaryModule } from './services/cloudinary.module';
     UsersModule,
     EventsModule,
     ChatModule,
+    CarsharingModule,
     AppConfigModule,
     NotificationsModule,
   ],
