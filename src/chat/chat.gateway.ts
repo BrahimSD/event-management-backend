@@ -4,7 +4,7 @@ import { ChatService } from './chat.service';
 
 @WebSocketGateway({
     cors: {
-      origin: 'http://localhost:4200',
+      origin: ['http://localhost:4200', 'https://eventmbds.netlify.app'],
       credentials: true,
     },
     namespace: '/chat'
